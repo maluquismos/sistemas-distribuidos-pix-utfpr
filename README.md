@@ -1,6 +1,8 @@
 
 # Protocolo de Mensagens - Sistema Bancário Simples
 
+Versão atual: 1.0
+
 Um projeto para a disciplina de Sistemas Distribuídos que define um protocolo de comunicação baseado em JSON para as operações de um sistema bancário simplificado.
 
 **Criadores:**
@@ -44,6 +46,9 @@ Para a correta manipulação das mensagens JSON, o projeto utiliza a biblioteca 
 1.3 Possíveis Erros
 - Caso esteja instalando eclipse pela primeira vez, o erro "Downloading external resources is disabled. [DownloadResourceDisabled]" pode ocorrer, para consertar basta ir em Window->Preferences->Maven->Habilite os botões que dizem "donwload" e "uptade"->Apply
 
+1.4 Recomendações
+- Utilizarem JDK a partir do 21
+
 ## 2. Como Utilizar o Validador
 
 O repositório fornece uma classe `Validator` para garantir que as mensagens trocadas entre cliente e servidor sigam o protocolo definido.
@@ -84,6 +89,7 @@ Toda mensagem trocada deve conter um campo `operacao`. Em envios de mensagem ao 
 
 **Valores possíveis para `operacao`:**
 
+* `conectar`
 * `usuario_login`
 * `usuario_logout`
 * `usuario_criar`
@@ -475,6 +481,43 @@ O `valor_enviado` representa a quantidade que está sendo depositada.
 
 ```
 
+### 4.10. Conectar com o servidor (`conectar`)
+Essa ação permite que o usuário se conecte com o servidor
+
+#### Envio (Cliente → Servidor)
+
+```
+{
+  "operacao": "conectar"
+}
+
+```
+
+#### Recebimento (Servidor → Cliente) em caso de sucesso
+
+```
+{
+  "operacao": "conectar",
+  "status": true,
+  "info": "Servidor conectado com sucesso."
+}
+
+```
+
+#### Recebimento (Servidor → Cliente) em caso de falha
+
+ADENDO: Muito provavelmente caso o servidor se conecte com sucesso, ele nem mesmo irá retornar algo, mas apenas por padrão, iremos adicionar o "caso de erro"
+
+```
+{
+  "operacao": "conectar",
+  "status": false,
+  "info": "Erro ao se conectar."
+}
+
+```
+
+
 ## 5. Em caso de erro
 
 ### 5.1. Erros padrões
@@ -500,15 +543,24 @@ Caso o servidor envie uma mensagem que não contenha `operacao`, `status` ou `in
 | **Campo(s)**           | **Tipo de Dado** | **Descrição**                                                                                                                                                                                   |
 | ---------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `id`,`pagina`,`limite` | **`int`**      | Valores numéricos inteiros.                                                                                                                                                                            |
-| `valor_enviado`,`saldo`  | **`double`**   | Valores numéricos de ponto flutuante.*Nota: Para este projeto,`double`é aceitável. Em sistemas de produção, o ideal seria usar `long`para representar centavos e evitar erros de precisão.* |
+| `valor_enviado`,`saldo`  | **`double`**   | Valores numéricos de ponto flutuante com no máximo *duas* casas decimais. |
 | `cpf`, `cpf_destino` | **`String: 000.000.000-00`**   | O Validador apenas valida se o CPF está na formatação, não se é válido (espaçamentos no começo e no final são desconsiderados). |
 | `nome`,`senha`  | **`String: Min 6 e Max 120 caracteres`**   | O Validador apenas valida o tamanho, ele desconsidera espaços no começo e no fim. |
 | `data_inicial`,`data_final`| **`String: yyyy-MM-dd'T'HH:mm:ss'Z'`** | Datas devem estar no formato ISO 8601 UTC. |
 | Todos os outros campos     | **`String: Min 3 e Max 200`** | Valores de texto (espaçamentos no começo e no final são desconsiderados).                   |
 
-## 7. Explicações adicionais e avisos
+## 7. Conexão e desconexão entre cliente e servidor
+As conexões quando criadas devem se manter até o final da sessão do usuário, apenas se desconectando no final de cada sessão.
 
-### 7.1. Esperado de cada aluno.
+### 7.1. Conexão.
+- O cliente deve enviar uma operacao chamada `conectar` para o IP e a porta escolhida.
+- O servidor deve responder de acordo conforme o protocolo.
+### 7.3. Desconexão.
+- Tanto o cliente como o servidor podem se desconectar enviando `null` caso alguma operação não cumpra o protocolo.
+
+## 8. Explicações adicionais e avisos
+
+### 8.1. Esperado de cada aluno.
 - É esperado que o servidor retorne os dados corretamente, porém o cliente sempre deve se previnir para caso o servidor retorne um `status` como `false`,<br>
 ou até mesmo não retorne nada, mesmo que seus dados enviados estejam corretos, prever erros ou falta de respostas é de inteira responsabilidade do aluno.
 
@@ -516,13 +568,13 @@ ou até mesmo não retorne nada, mesmo que seus dados enviados estejam corretos,
 
 - É esperado do aluno, que caso encontre uma vulnerabilidade ou ponto importante no protocolo, ele imediatamente avise no grupo de Whatsapp da turma ou em sala.
 
-### 7.2. Pontos subentendidos.
+### 8.2. Pontos subentendidos.
 Há algumas informações que estão subentendidas sobre o projeto, o protocolo não visa em conta as regras de negócio do sistema bancário,<br>
 que por sua vez estão disponíveis [clicando aqui](https://docs.google.com/document/d/1MRiMjnu9PdJSWPyAKl4zBdkZN0iFwNujDLjRW_oP-IA/edit?tab=t.0)
 
 Todas possiblidades de conversas entre o `cliente->servidor` e `servidor->cliente` estão listadas aqui, para que sua mensagem esteja correta ela deve seguir o molde fornecido a **risca**, do contrário, estará contra o protocolo e suas orientações.
 
-### 7.3. ISO 8601
+### 8.3. ISO 8601
 **Explicação:**<br>
 Apenas será necessário transformar em String, e ler a String com funções já nativas do Java (Date)
 
@@ -541,5 +593,4 @@ Apenas será necessário transformar em String, e ler a String com funções já
   "data_inicial": "2025-08-01T00:00:00Z",
   "data_final": "2025-08-27T23:59:59Z"
 }`
-
 
