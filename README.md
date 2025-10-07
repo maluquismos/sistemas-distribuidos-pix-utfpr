@@ -1,7 +1,7 @@
 
 # Protocolo de Mensagens - Sistema Bancário Simples
 
-Versão atual: 1.1
+Versão atual: 1.2
 
 Um projeto para a disciplina de Sistemas Distribuídos que define um protocolo de comunicação baseado em JSON para as operações de um sistema bancário simplificado.
 
@@ -539,6 +539,17 @@ O que isso significa? Quando o cliente receber uma operação com o `status` com
 
 ### 5.2. Erros de JSON
 Caso o servidor envie uma mensagem que não contenha `operacao`, `status` ou `info`, ou o cliente envie uma mensagem que não contenha `operacao`,<br>o servidor/cliente que recebe devem retornar `null` para encerrar a conexão.
+
+### 5.3 Erros na conexão
+Caso a primeira `operacao` a ser recebida não seja `conectar` um erro deve ser retornado como:
+```
+{
+  "operacao": OPERACAO_QUE_FOI_RECEBIDA,
+  "status": false,
+  "info": "Erro, para receber uma operacao, a primeira operacao deve ser 'conectar'"
+}
+
+```
 
 ## 6. Tipagem de Dados
 
