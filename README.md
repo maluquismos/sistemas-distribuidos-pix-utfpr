@@ -484,7 +484,7 @@ O `valor_enviado` representa a quantidade que está sendo depositada.
 ### 4.10. Conectar com o servidor (`conectar`)
 Essa ação permite que o usuário se conecte com o servidor e deve ser a primeira a ser chamada.
 
-Caso o usuário chame `conectar` novamente, mesmo já estando conectado, a operação deve ser bem sucedida também.
+Caso o usuário chame `conectar` novamente, mesmo já estando conectado, a operação deve ser bem-sucedida.
 
 #### Envio (Cliente → Servidor)
 
