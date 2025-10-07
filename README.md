@@ -1,7 +1,7 @@
 
 # Protocolo de Mensagens - Sistema Bancário Simples
 
-Versão atual: 1.0
+Versão atual: 1.1
 
 Um projeto para a disciplina de Sistemas Distribuídos que define um protocolo de comunicação baseado em JSON para as operações de um sistema bancário simplificado.
 
