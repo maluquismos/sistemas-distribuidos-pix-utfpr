@@ -1,7 +1,9 @@
 
 # Protocolo de Mensagens - Sistema Bancário Simples
 
-Versão atual: 1.2
+Versão atual: 1.3
+
+Últimos tópicos atualizados: 4.6.
 
 Um projeto para a disciplina de Sistemas Distribuídos que define um protocolo de comunicação baseado em JSON para as operações de um sistema bancário simplificado.
 
@@ -308,6 +310,8 @@ A seguir, a especificação detalhada para cada operação.
 ```
 
 ### 4.6. Deleção de Usuário (`usuario_deletar`)
+
+Ao deletar um usuário com sucesso a conexão entre o servidor e cliente se mantém.
 
 #### Envio (Cliente → Servidor)
 
