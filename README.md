@@ -3,7 +3,7 @@
 
 Versão atual: 1.3
 
-Últimos tópicos atualizados: 4.6.
+Últimos tópicos atualizados: `4.6.` `7.3.`
 
 Um projeto para a disciplina de Sistemas Distribuídos que define um protocolo de comunicação baseado em JSON para as operações de um sistema bancário simplificado.
 
@@ -573,7 +573,7 @@ As conexões quando criadas devem se manter até o final da sessão do usuário,
 - O cliente deve enviar uma operacao chamada `conectar` para o IP e a porta escolhida.
 - O servidor deve responder de acordo conforme o protocolo.
 ### 7.3. Desconexão.
-- Tanto o cliente como o servidor podem se desconectar enviando `null` caso alguma operação não cumpra o protocolo.
+- Tanto o cliente como o servidor podem se desconectar enviando `null` caso alguma operação não cumpra o protocolo e não haja alguma regra de retorno. (Ou caso apenas queira se desconectar)
 
 ## 8. Explicações adicionais e avisos
 
