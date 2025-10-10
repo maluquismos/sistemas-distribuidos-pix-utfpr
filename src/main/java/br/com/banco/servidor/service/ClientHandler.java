@@ -6,7 +6,6 @@ import br.com.banco.servidor.dao.UsuarioDAO;
 import br.com.banco.servidor.exception.AuthenticationException;
 import br.com.banco.servidor.exception.BusinessException;
 import br.com.banco.servidor.exception.ProtocolException;
-import br.com.banco.servidor.service.SessaoManager;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -15,7 +14,6 @@ import java.io.*;
 import java.math.BigDecimal;
 import java.net.Socket;
 import java.util.function.Consumer;
-import br.com.banco.servidor.service.TransacaoService;
 import br.com.banco.servidor.dao.TransacaoDAO;
 import br.com.banco.servidor.util.PasswordUtil;
 
@@ -73,8 +71,10 @@ public class ClientHandler implements Runnable {
             logger.accept(String.format("[%s] Recebido (Handshake): %s", clientIp, handshakeJson));
             JsonNode handshakeNode = mapper.readTree(handshakeJson);
             if (!handshakeNode.has("operacao") || !handshakeNode.get("operacao").asText().equals("conectar")) {
+                String connectResponse = criarRespostaErro("conectar", "Protocolo violado: a primeira operação deve ser 'conectar'.");
                 logger.accept(String.format("[ERRO] Protocolo violado por [%s]. Primeira operação não foi 'conectar'. Desconectando.", clientIp));
-                out.println(criarRespostaErro("conectar", "Protocolo violado: a primeira operação deve ser 'conectar'."));
+                logger.accept(String.format("[%s] Enviando (Handshake): %s", clientIp, connectResponse));
+                out.println(connectResponse);
                 return;
             }
             
@@ -156,8 +156,11 @@ public class ClientHandler implements Runnable {
         logger.accept("Usuário " + usuario.getNome() + " (" + cpf + ") logado com sucesso.");
 
         if (onLoginSuccess != null) {
-            String clientIdentifier = clientSocket.getRemoteSocketAddress().toString();
-            onLoginSuccess.accept(clientIdentifier, usuario.getNome());
+            String ip = clientSocket.getInetAddress().getHostAddress();
+            String porta = String.valueOf(clientSocket.getPort());
+            String clientId = ip + ":" + porta;
+            
+            onLoginSuccess.accept(clientId, usuario.getNome());
         }
 
         ObjectNode response = criarRespostaBase(true, "usuario_login", "Login bem-sucedido.");
@@ -192,8 +195,11 @@ public class ClientHandler implements Runnable {
             logger.accept("Sessão encerrada para o token: " + token.substring(0, 8) + "...");
             
             if(onLogout != null) {
-                String clientIdentifier = clientSocket.getRemoteSocketAddress().toString().substring(1);
-                onLogout.accept(clientIdentifier);
+                String ip = clientSocket.getInetAddress().getHostAddress();
+                String porta = String.valueOf(clientSocket.getPort());
+                String clientId = ip + ":" + porta;
+                
+                onLogout.accept(clientId);
             }
             
             return criarRespostaSucesso("usuario_logout", "Logout realizado com sucesso.");
@@ -239,6 +245,9 @@ public class ClientHandler implements Runnable {
     
     private String handleDeletarUsuario(String cpf) throws Exception {
         Usuario usuario = usuarioDAO.buscarUsuarioPorCpf(cpf);
+        if (usuario == null) {
+            return criarRespostaErro("usuario_deletar", "Usuário não encontrado no banco de dados");
+        }
         
         boolean sucesso = usuarioDAO.deletarUsuario(cpf);
         if (!sucesso) {

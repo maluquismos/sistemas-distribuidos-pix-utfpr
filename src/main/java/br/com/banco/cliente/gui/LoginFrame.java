@@ -49,7 +49,7 @@ public class LoginFrame extends JFrame {
 
         // --- PAINEL DO TÍTULO ---
         JLabel titleLabel = new JLabel("Bem-vindo ao Pix UTFPR");
-        titleLabel.setFont(new Font("Georgia", Font.BOLD, 28));
+        titleLabel.setFont(fontTitulo);
         titleLabel.setAlignmentX(Component.CENTER_ALIGNMENT); // Centraliza o título
 
         // --- PAINEL DO FORMULÁRIO (com GridLayout) ---
@@ -60,9 +60,9 @@ public class LoginFrame extends JFrame {
         JLabel cpfLabel = new JLabel("CPF (login/cadastro):");
         JLabel nomeLabel = new JLabel("Nome (só cadastro):");
         JLabel senhaLabel = new JLabel("Senha:");
-        cpfLabel.setFont(new Font("Georgia", Font.PLAIN, 14));
-        nomeLabel.setFont(new Font("Georgia", Font.PLAIN, 14));
-        senhaLabel.setFont(new Font("Georgia", Font.PLAIN, 14));
+        cpfLabel.setFont(fontLabel);
+        nomeLabel.setFont(fontLabel);
+        senhaLabel.setFont(fontLabel);
 
         // Campos de Input
         cpfField = createCpfField();

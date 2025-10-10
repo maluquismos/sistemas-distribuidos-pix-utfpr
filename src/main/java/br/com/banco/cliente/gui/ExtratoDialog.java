@@ -14,6 +14,7 @@ import java.text.SimpleDateFormat;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Date;
+import java.util.Calendar;
 import java.util.Locale;
 
 public class ExtratoDialog extends JDialog {
@@ -112,8 +113,15 @@ public class ExtratoDialog extends JDialog {
             return;
         }
         
+        Calendar c = Calendar.getInstance();
+        c.setTime(dataFinal);
+        c.set(Calendar.HOUR_OF_DAY, 23);
+        c.set(Calendar.MINUTE, 59);
+        c.set(Calendar.SECOND, 59);
+        Date dataFinalAjustada = c.getTime();
+
         // A validação de 31 dias agora é feita no serviço, mas podemos manter um aviso na GUI
-        if (dataInicial.after(dataFinal)) {
+        if (dataInicial.after(dataFinalAjustada)) {
             JOptionPane.showMessageDialog(this, "A data inicial não pode ser posterior à data final.", "Erro de Período", JOptionPane.ERROR_MESSAGE);
             return;
         }
@@ -122,7 +130,7 @@ public class ExtratoDialog extends JDialog {
             @Override
             protected JsonNode doInBackground() throws Exception {
                 // Chama o serviço, que contém a regra de negócio dos 31 dias
-                return clienteService.lerTransacoes(dataInicial, dataFinal);
+                return clienteService.lerTransacoes(dataInicial, dataFinalAjustada);
             }
 
             @Override
