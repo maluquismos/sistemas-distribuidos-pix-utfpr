@@ -30,6 +30,8 @@ public class Validator {
 
         // Chama o método de validação específico para a operação
         switch (operacao) {
+            case CONECTAR:
+                break;
             case USUARIO_LOGIN:
                 validateUsuarioLoginClient(rootNode);
                 break;

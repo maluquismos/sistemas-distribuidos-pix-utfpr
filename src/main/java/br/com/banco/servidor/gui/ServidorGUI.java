@@ -2,8 +2,6 @@ package br.com.banco.servidor.gui;
 
 import br.com.banco.servidor.service.Servidor;
 import br.com.banco.servidor.dao.Database;
-import br.com.banco.servidor.gui.UsuariosPanel;
-import br.com.banco.servidor.gui.ConexoesPanel;
 
 import com.formdev.flatlaf.FlatDarculaLaf;
 
@@ -12,8 +10,6 @@ import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.net.InetAddress;
 import java.util.function.Consumer;
-import javax.swing.border.TitledBorder;
-import javax.swing.border.EtchedBorder;
 
 public class ServidorGUI extends JFrame {
 

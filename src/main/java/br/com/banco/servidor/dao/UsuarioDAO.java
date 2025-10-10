@@ -9,7 +9,6 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
-import br.com.banco.model.Usuario;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.math.BigDecimal;
 

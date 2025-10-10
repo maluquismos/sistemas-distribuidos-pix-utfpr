@@ -12,11 +12,8 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.math.BigDecimal;
 import java.net.Socket;
-import java.net.UnknownHostException;
 import java.time.temporal.ChronoUnit;
-import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.time.ZoneId;
 import java.util.Date;
 
 public class ClienteService {
@@ -38,7 +35,6 @@ public class ClienteService {
         return instance;
     }
 
-    // --- LÓGICA DE CONEXÃO E SESSÃO ---
 
     public void setLogFrame(LogFrame logFrame) { this.logFrame = logFrame; }
     
@@ -88,10 +84,11 @@ public class ClienteService {
         if (logFrame != null) logFrame.addLog("[C] " + message);
     }
     
-    // O "mensageiro" agora é privado e faz as validações!
     private JsonNode enviarMensagem(String jsonRequest) throws Exception {
         if (!isConectado()) throw new IOException("Não conectado ao servidor.");
         
+        Validator.validateClient(jsonRequest);
+
         log("Enviando: " + jsonRequest);
         out.println(jsonRequest);
         

@@ -1,6 +1,5 @@
 package br.com.banco.servidor.service;
 
-import br.com.banco.servidor.service.ClientHandler;
 import br.com.banco.servidor.gui.ConexoesPanel;
 import br.com.banco.model.ConexaoInfo; // Importa o novo modelo
 
@@ -53,36 +52,32 @@ public class Servidor implements Runnable {
                 try {
                     Socket clientSocket = serverSocket.accept();
                     
-                    // --- MUDANÇA PRINCIPAL: EXTRAÇÃO DETALHADA DOS DADOS ---
                     InetAddress inetAddress = clientSocket.getInetAddress();
                     String ip = inetAddress.getHostAddress();
-                    String hostname = inetAddress.getHostName(); // Pega o nome do host
+                    String hostname = inetAddress.getHostName();
                     String porta = String.valueOf(clientSocket.getPort());
-                    String id = ip + ":" + porta; // O identificador único continua sendo IP:Porta
+                    String id = ip + ":" + porta; 
                     
-                    // Cria o objeto de informação da conexão para enviar à GUI
                     ConexaoInfo novaConexao = new ConexaoInfo(ip, porta, hostname, "Aguardando login...");
                     
-                    // --- ATUALIZAÇÃO DOS CALLBACKS PARA USAR O 'id' CORRETO ---
                     Runnable onDisconnect = () -> {
                         clientesConectados.remove(id);
-                        conexoesPanel.removerConexao(id); // Usa o novo método do painel
+                        conexoesPanel.removerConexao(id);
                         logger.accept("Cliente desconectado: " + id);
                     };
 
                     BiConsumer<String, String> onLogin = (clientId, username) -> {
-                        conexoesPanel.atualizarNomeUsuario(clientId, username);
+                        String cleanId = clientId.startsWith("/") ? clientId.substring(1) : clientId;
+                        conexoesPanel.atualizarNomeUsuario(cleanId, username);
                     };
 
                     Consumer<String> onLogout = (clientId) -> {
                         conexoesPanel.atualizarNomeUsuario(clientId, "Aguardando login...");
                     };
 
-                    // O construtor do ClientHandler agora é mais simples
                     ClientHandler clientHandler = new ClientHandler(clientSocket, logger, onDisconnect, onLogin, onLogout);
                     
                     clientesConectados.put(id, clientHandler);
-                    // Usa o novo método para adicionar a conexão completa ao painel
                     conexoesPanel.adicionarConexao(id, novaConexao);
                     clientPool.submit(clientHandler);
                     
