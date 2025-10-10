@@ -1,9 +1,1 @@
-# 1. Ignora todos os arquivos e pastas
-*
-
-# 2. Cria uma exceção para NÃO ignorar o arquivo Validator.java e o RulesEnum.java, em qualquer pasta que ele esteja
-!**/Validator.java
-!**/RulesEnum.java
-
-# 3. Cria uma exceção para manter o próprio arquivo .gitignore no repositório
-!.gitignore
+/target/
