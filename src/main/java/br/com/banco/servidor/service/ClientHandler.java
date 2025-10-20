@@ -5,7 +5,7 @@ import br.com.banco.model.Usuario;
 import br.com.banco.servidor.dao.UsuarioDAO;
 import br.com.banco.servidor.exception.AuthenticationException;
 import br.com.banco.servidor.exception.BusinessException;
-import br.com.banco.servidor.exception.ProtocolException;
+// import br.com.banco.servidor.exception.ProtocolException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -124,6 +124,7 @@ public class ClientHandler implements Runnable {
         switch (operacao) {
             case "usuario_login": return handleLogin(request);
             case "usuario_criar": return handleCriarUsuario(request);
+            case "conectar": return handleConectar();
         }
 
         String token = request.get("token").asText();
@@ -138,10 +139,19 @@ public class ClientHandler implements Runnable {
             case "transacao_ler": return handleLerTransacoes(cpfUsuarioLogado, request);
             case "depositar": return handleDepositar(cpfUsuarioLogado, request);
             default:
-                throw new ProtocolException("Operação autenticada desconhecida: " + operacao);
+                return handleUnknownOperation(operacao);
         }
     }
 
+    private String handleConectar() throws Exception {
+        Object response = criarRespostaBase(true, "conectar", "Já conectado anteriormente.");
+        return mapper.writeValueAsString(response);
+    }
+
+    private String handleUnknownOperation(String operacao) throws Exception{
+        Object response = criarRespostaBase(false, operacao, "Operação ainda não implementada.");
+        return mapper.writeValueAsString(response);
+    }
 
     private String handleLogin(JsonNode request) throws Exception {
         String cpf = request.get("cpf").asText();
@@ -341,11 +351,14 @@ public class ClientHandler implements Runnable {
             // Assumindo que você renomeou o método get para getDataHoraTransacao()
             String timestampDoBanco = t.getDataHoraTransacao(); 
             
+            System.out.println("Timestamp original do banco: " + timestampDoBanco); // Log para depuração
             // 2. Converte para um objeto Instant, que entende o formato completo
             Instant instant = Instant.parse(timestampDoBanco);
+            System.out.println("Instant parseado: " + instant); // Log para depuração
 
             // 3. Trunca para segundos (remove a parte fracionária) e converte para string
             String timestampCorreto = instant.truncatedTo(ChronoUnit.SECONDS).toString();
+            System.out.println("Timestamp corrigido: " + timestampCorreto); // Log para depuração
             
             // 4. Usa a string formatada corretamente no JSON de resposta
             tNode.put("criado_em", timestampCorreto);
