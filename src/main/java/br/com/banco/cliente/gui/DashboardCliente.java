@@ -7,42 +7,75 @@ import com.fasterxml.jackson.databind.JsonNode;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
+import java.io.IOException;
 
 public class DashboardCliente extends JFrame {
 
     private final ClienteService clienteService;
-    private String nomeUsuario;
-    private String cpfUsuario;
-    private double saldoUsuario;
+    // Dados do usuário (podem começar nulos/padrão se a carga inicial falhar)
+    private String nomeUsuario = "Usuário";
+    private String cpfUsuario = "---.---.---.--";
+    private double saldoUsuario = 0.0;
 
+    // Componentes da UI que precisam ser atualizados
     private final JLabel saldoLabel;
     private final JLabel welcomeLabel;
+    private final JLabel cpfLabel;
+    private final JButton refreshButton;
 
     public DashboardCliente(String token) {
         super("Minha Conta");
         this.clienteService = ClienteService.getInstance();
-        
+
+        saldoLabel = new JLabel("Saldo disponível: Carregando...");
+        welcomeLabel = new JLabel("Olá, Carregando...");
+        cpfLabel = new JLabel("CPF: Carregando...");
+        refreshButton = new JButton("Atualizar Dados");
+        refreshButton.setIcon(IconUtil.loadIcon("refresh-cw.png", 16, 16));
+
+        try {
+            carregarDadosUsuario();
+        } catch (IOException e) {
+            JOptionPane.showMessageDialog(null, "Erro crítico de comunicação ao carregar dados iniciais:\n" + e.getMessage() + "\nVoltando para a tela de conexão.", "Erro Crítico", JOptionPane.ERROR_MESSAGE);
+            SwingUtilities.invokeLater(() -> {
+                voltarParaConexao();
+                this.dispose();
+            });
+            return;
+        } catch (Exception e) {
+            final String errorMessage = e.getMessage();
+             SwingUtilities.invokeLater(() -> {
+                JOptionPane.showMessageDialog(this, "Não foi possível carregar os dados iniciais:\n" + errorMessage + "\nUse o botão 'Atualizar Dados'.", "Aviso", JOptionPane.WARNING_MESSAGE);
+             });
+        }
+        setupUI();
+        atualizarLabelsUI();
+
+        refreshButton.addActionListener(e -> recarregarDadosEAtualizarUI());
+
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setSize(new Dimension(550, 600));
+        setMinimumSize(new Dimension(500, 550));
+        setLocationRelativeTo(null);
+    }
+
+    // Método que monta a interface gráfica
+    private void setupUI() {
         JPanel mainPanel = new JPanel(new BorderLayout(10, 20));
         mainPanel.setBorder(new EmptyBorder(20, 20, 20, 20));
 
         JPanel infoPanel = new JPanel();
         infoPanel.setLayout(new BoxLayout(infoPanel, BoxLayout.Y_AXIS));
-        
-        saldoLabel = new JLabel();
-        welcomeLabel = new JLabel();
-        
-        if (!carregarDadosUsuario()) {
-            JOptionPane.showMessageDialog(null, "Não foi possível carregar os dados do usuário.", "Erro", JOptionPane.ERROR_MESSAGE);
-            voltarParaConexao();
-            return;
-        }
-
-        welcomeLabel.setText("Olá, " + nomeUsuario + "!");
+        infoPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
         welcomeLabel.setFont(new Font("Georgia", Font.BOLD, 24));
+        cpfLabel.setFont(new Font("Georgia", Font.PLAIN, 16));
         saldoLabel.setFont(new Font("Georgia", Font.PLAIN, 18));
-        atualizarLabelSaldo();
+        refreshButton.setAlignmentX(Component.LEFT_ALIGNMENT);
         infoPanel.add(welcomeLabel);
+        infoPanel.add(cpfLabel);
         infoPanel.add(saldoLabel);
+        infoPanel.add(Box.createVerticalStrut(10));
+        infoPanel.add(refreshButton);
 
         JMenuBar menuBar = new JMenuBar();
         JMenu menuSistema = new JMenu("Sistema");
@@ -53,125 +86,149 @@ public class DashboardCliente extends JFrame {
         menuBar.add(menuSistema);
         setJMenuBar(menuBar);
 
-        // --- PAINEL DE AÇÕES (VOLTANDO AO GRIDLAYOUT) ---
         JPanel actionsPanel = new JPanel(new GridLayout(5, 1, 10, 15));
         actionsPanel.setBorder(new EmptyBorder(10, 40, 10, 40));
-        
         JButton btnPix = new JButton("Realizar Transferência (PIX)");
         JButton btnExtrato = new JButton("Visualizar Extrato");
         JButton btnDepositar = new JButton("Realizar Depósito");
         JButton btnGerenciarConta = new JButton("Gerenciar Minha Conta");
         JButton btnLogout = new JButton("Logout (Sair da Conta)");
-
-        // Configuração dos botões
         Font buttonFont = new Font("Georgia", Font.BOLD, 14);
         Dimension buttonSize = new Dimension(200, 40);
         JButton[] buttons = {btnPix, btnExtrato, btnDepositar, btnGerenciarConta, btnLogout};
         String[] iconPaths = {"send.png", "file-text.png", "dollar-sign.png", "user.png", "log-out.png"};
-
         for (int i = 0; i < buttons.length; i++) {
             buttons[i].setFont(buttonFont);
             buttons[i].setIcon(IconUtil.loadIcon(iconPaths[i], 16, 16));
             buttons[i].setPreferredSize(buttonSize);
-            if (i < buttons.length - 1) { // Mantém o botão de logout cinza
-                buttons[i].putClientProperty("JButton.buttonType", "default");
-            }
+            if (i < buttons.length - 1) { buttons[i].putClientProperty("JButton.buttonType", "default"); }
             actionsPanel.add(buttons[i]);
         }
-        
         mainPanel.add(infoPanel, BorderLayout.NORTH);
         mainPanel.add(actionsPanel, BorderLayout.CENTER);
         setContentPane(mainPanel);
 
-        // --- AÇÕES ---
         itemSair.addActionListener(e -> System.exit(0));
         itemVoltar.addActionListener(e -> voltarParaConexao());
         btnLogout.addActionListener(e -> handleLogout());
         btnGerenciarConta.addActionListener(e -> abrirGerenciadorConta());
         btnDepositar.addActionListener(e -> abrirDialogoDeposito());
         btnPix.addActionListener(e -> abrirDialogoPix());
-        btnExtrato.addActionListener(e -> abrirDialogoExtrato()); // Adiciona a nova ação
+        btnExtrato.addActionListener(e -> abrirDialogoExtrato());
+    }
 
-        // --- CONFIGURAÇÕES FINAIS ---
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(new Dimension(550, 600));
-        setMinimumSize(new Dimension(500, 550));
-        setLocationRelativeTo(null);
+    // Atualiza as labels com os dados atuais
+    private void atualizarLabelsUI() {
+        welcomeLabel.setText("Olá, " + nomeUsuario + "!");
+        cpfLabel.setText("CPF: " + cpfUsuario);
+        atualizarLabelSaldo();
+        this.revalidate();
+        this.repaint();
     }
-    
-    // Abre o diálogo de extrato
-    private void abrirDialogoExtrato() {
-        ExtratoDialog dialog = new ExtratoDialog(this);
-        dialog.setVisible(true);
-    }
-    
-    // Carrega os dados do usuário logado via ClienteService
-    private boolean carregarDadosUsuario() {
-        try {
-            JsonNode response = clienteService.getDadosUsuario();
-            if (response.get("status").asBoolean()) {
-                JsonNode userNode = response.get("usuario");
-                this.nomeUsuario = userNode.get("nome").asText();
-                this.cpfUsuario = userNode.get("cpf").asText();
-                this.saldoUsuario = userNode.get("saldo").asDouble();
-                return true;
+
+    // Recarrega os dados do usuário (chamado pelo botão Refresh)
+    private void recarregarDadosEAtualizarUI() {
+        refreshButton.setEnabled(false);
+        refreshButton.setText("Atualizando...");
+
+        new SwingWorker<Boolean, Void>() {
+            Exception error = null;
+
+            @Override protected Boolean doInBackground() {
+                try { carregarDadosUsuario(); return true; }
+                catch (Exception e) { error = e; return false; }
             }
-        } catch (Exception e) {
-            e.printStackTrace();
+
+            @Override protected void done() {
+                try {
+                    if (Boolean.TRUE.equals(get())) { // Sucesso
+                        atualizarLabelsUI();
+                    } else { // Falha
+                        handleUpdateError(error); // Chama método auxiliar para tratar o erro
+                    }
+                } catch (Exception e) { // Captura erro do próprio get()
+                    handleUpdateError(e);
+                } finally {
+                    refreshButton.setEnabled(true);
+                    refreshButton.setText("Atualizar Dados");
+                }
+            }
+        }.execute();
+    }
+    
+    // Método auxiliar para tratar erros ocorridos durante a atualização (refresh)
+    private void handleUpdateError(Exception error) {
+        if (error instanceof IOException) {
+            JOptionPane.showMessageDialog(this, "Erro de comunicação ao atualizar:\n" + error.getMessage() + "\nVoltando para a tela de conexão.", "Erro Crítico", JOptionPane.ERROR_MESSAGE);
+            voltarParaConexao();
+        } else if (error instanceof IllegalArgumentException || error.getMessage().contains("deve estar no formato")) { // Erro de validação da resposta
+             JOptionPane.showMessageDialog(this, "O servidor enviou uma resposta inválida:\n" + error.getMessage(), "Erro de Protocolo", JOptionPane.ERROR_MESSAGE);
+             clienteService.reportarErroServidor("usuario_ler", error.getMessage());
+             // NÃO desloga nem fecha a janela
+        } else { // Outros erros (geralmente status:false do servidor)
+             JOptionPane.showMessageDialog(this, "Não foi possível atualizar os dados:\n" + error.getMessage(), "Erro", JOptionPane.ERROR_MESSAGE);
+             // NÃO desloga nem fecha a janela
+             // Aqui você pode adicionar lógica: se error.getMessage().contains("Token inválido"), chamar voltarParaLogin();
         }
-        return false;
     }
 
-    // Atualiza o texto da label de saldo
+    // Carrega os dados do usuário do servidor
+    private JsonNode carregarDadosUsuario() throws Exception {
+        JsonNode response = clienteService.getDadosUsuario();
+        if (response.get("status").asBoolean()) {
+            JsonNode userNode = response.get("usuario");
+            this.nomeUsuario = userNode.get("nome").asText();
+            this.cpfUsuario = userNode.get("cpf").asText();
+            this.saldoUsuario = userNode.hasNonNull("saldo") ? userNode.get("saldo").asDouble() : 0.0;
+            return userNode;
+        } else {
+            throw new Exception(response.get("info").asText());
+        }
+    }
+
+    // Atualiza a label de saldo
     private void atualizarLabelSaldo() {
         saldoLabel.setText(String.format("Saldo disponível: R$ %.2f", this.saldoUsuario));
     }
 
-    // Desconecta e volta para a tela de conexão
+    // Desconecta e volta para Conexão
     private void voltarParaConexao() {
         clienteService.desconectar();
         this.dispose();
         new ClienteGUI().setVisible(true);
     }
     
-    // Realiza o logout e volta para a tela de login
-    private void handleLogout() {
-        try {
-            clienteService.logout();
-        } catch (Exception e) {
-            // Mesmo com erro, o logout local prossegue
-        }
-        clienteService.encerrarSessao();
-        this.dispose();
+    // Volta para Login (chamado em caso de erro na carga inicial não-rede)
+    private static void voltarParaLoginEstatico() {
+        ClienteService.getInstance().encerrarSessao();
         new LoginFrame().setVisible(true);
     }
-    
-    // Recarrega os dados do usuário e atualiza a UI (usado como callback)
-    private void recarregarDadosEAtualizarUI() {
-        if (carregarDadosUsuario()) {
-            welcomeLabel.setText("Olá, " + nomeUsuario + "!");
-            atualizarLabelSaldo();
-            this.revalidate();
-            this.repaint();
-        } else {
-            JOptionPane.showMessageDialog(this, "Sua sessão pode ter expirado. Por favor, faça login novamente.", "Erro", JOptionPane.ERROR_MESSAGE);
-            voltarParaConexao();
+
+    // Volta para Login (chamado pelo botão de logout)
+    private void voltarParaLogin() {
+         clienteService.encerrarSessao();
+         this.dispose();
+         new LoginFrame().setVisible(true);
+    }
+
+
+    // Realiza o logout
+    private void handleLogout() {
+        try {
+            JsonNode response = clienteService.logout();
+            if (response.get("status").asBoolean()) {
+                voltarParaLogin(); // Só volta se o servidor confirmar
+            } else {
+                JOptionPane.showMessageDialog(this, "Falha ao fazer logout no servidor:\n" + response.get("info").asText(), "Erro de Logout", JOptionPane.WARNING_MESSAGE);
+            }
+        } catch (Exception e) { // Trata erros de rede, validação da resposta, etc.
+             handleUpdateError(e); // Reutiliza o tratamento de erro do refresh
         }
     }
-    
-    // Abre os diálogos para as ações financeiras e de gerenciamento
-    private void abrirDialogoDeposito() {
-        DepositoDialog dialog = new DepositoDialog(this, this::recarregarDadosEAtualizarUI);
-        dialog.setVisible(true);
-    }
-    
-    private void abrirDialogoPix() {
-        PixDialog dialog = new PixDialog(this, this::recarregarDadosEAtualizarUI);
-        dialog.setVisible(true);
-    }
-    
-    private void abrirGerenciadorConta() {
-        GerenciarContaDialog dialog = new GerenciarContaDialog(this, this::handleLogout, this::recarregarDadosEAtualizarUI);
-        dialog.setVisible(true);
-    }
+
+    // Abre os diálogos
+    private void abrirDialogoDeposito() { DepositoDialog dialog = new DepositoDialog(this, this::recarregarDadosEAtualizarUI); dialog.setVisible(true); }
+    private void abrirDialogoPix() { PixDialog dialog = new PixDialog(this, this::recarregarDadosEAtualizarUI); dialog.setVisible(true); }
+    private void abrirGerenciadorConta() { GerenciarContaDialog dialog = new GerenciarContaDialog(this, this::handleLogout, this::recarregarDadosEAtualizarUI); dialog.setVisible(true); }
+    private void abrirDialogoExtrato() { ExtratoDialog dialog = new ExtratoDialog(this); dialog.setVisible(true); }
 }

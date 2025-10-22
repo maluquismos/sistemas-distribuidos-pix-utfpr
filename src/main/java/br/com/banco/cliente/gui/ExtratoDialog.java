@@ -178,7 +178,7 @@ public class ExtratoDialog extends JDialog {
             
             if (cpfRemetente.equals(cpfDestinatario) && cpfRemetente.equals(cpfUsuarioLogado)) {
                 tipo = "Entrada";
-                descricao = "Depósito recebido";
+                descricao = "Depósito efetuado";
             } else if (cpfRemetente.equals(cpfUsuarioLogado)) {
                 tipo = "Saída";
                 descricao = "PIX enviado para " + nomeDestinatario;

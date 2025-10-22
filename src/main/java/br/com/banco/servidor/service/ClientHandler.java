@@ -23,6 +23,8 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.function.BiConsumer;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import java.util.ArrayList;
+import java.util.Random;
 
 public class ClientHandler implements Runnable {
 
@@ -37,6 +39,9 @@ public class ClientHandler implements Runnable {
     private final BiConsumer<String, String> onLoginSuccess;
 //    private final BiConsumer<String, String> onUpdateUser;
     private final Consumer<String> onLogout;
+    private static final boolean ROLETA_RUSSA_SERVIDOR_ATIVADA = true;
+    private static final double CHANCE_ERRO_SERVIDOR = 0.1; 
+    private final Random random = new Random();
     
 //    public ClientHandler(Socket socket, Consumer<String> logger, Runnable onDisconnect, BiConsumer<String, String> onLoginSuccess, Consumer<String> onLogout, BiConsumer<String, String> onUpdateUser) {
 //        this.clientSocket = socket;
@@ -78,7 +83,6 @@ public class ClientHandler implements Runnable {
                 return;
             }
             
-            // Handshake bem-sucedido, envia resposta de sucesso
             String connectResponse = criarRespostaSucesso("conectar", "Servidor conectado com sucesso.");
             logger.accept(String.format("[%s] Enviando (Handshake): %s", clientIp, connectResponse));
             out.println(connectResponse);
@@ -89,6 +93,7 @@ public class ClientHandler implements Runnable {
                 logger.accept(String.format("[%s] Recebido: %s", clientIp, jsonRequest));
                 
                 String jsonResponse;
+                boolean isErrorResponse = false; // Flag para indicar se a resposta é um erro gerado aqui
                 JsonNode requestNode = null;
                 try {
                     Validator.validateClient(jsonRequest);
@@ -96,16 +101,34 @@ public class ClientHandler implements Runnable {
                     jsonResponse = processarOperacao(requestNode);
 
                 } catch (Exception e) {
-                    String operacao = (requestNode != null && requestNode.has("operacao"))
-                                      ? requestNode.get("operacao").asText() : "operacao_invalida";
-                    logger.accept(String.format("[ERRO] %s: %s", operacao, e.getMessage()));
-                    jsonResponse = criarRespostaErro(operacao, e.getMessage());
+                    // Erro ao processar a requisição do cliente (validação ou lógica)
+                    String operacaoFalha = "operacao_desconhecida";
+                    if (requestNode != null && requestNode.has("operacao")) {
+                        operacaoFalha = requestNode.get("operacao").asText();
+                    } else {
+                        try { operacaoFalha = mapper.readTree(jsonRequest).get("operacao").asText(); } catch (Exception ignored) {}
+                    }
+                    
+                    logger.accept(String.format("[ERRO] %s: %s", operacaoFalha, e.getMessage()));
+                    jsonResponse = criarRespostaErro(operacaoFalha, e.getMessage());
+                    isErrorResponse = true; // Marca que esta é uma resposta de erro gerada pelo catch
                 }
 
-                logger.accept(String.format("[%s] Enviando: %s", clientIp, jsonResponse));
-                out.println(jsonResponse);
+                // --- LÓGICA DA ROLETA RUSSA (SERVIDOR -> CLIENTE) ---
+                String finalJsonResponse = jsonResponse;
+                // SÓ aplica a roleta se NÃO for uma resposta de erro gerada pelo catch acima
+                if (!isErrorResponse && ROLETA_RUSSA_SERVIDOR_ATIVADA && Math.random() < CHANCE_ERRO_SERVIDOR) {
+                    logger.accept("[ROLETA RUSSA SERVIDOR] Introduzindo erro na resposta...");
+                    finalJsonResponse = introduzirErroJsonResposta(jsonResponse);
+                    logger.accept(String.format("[%s] Enviando (corrompido): %s", clientIp, finalJsonResponse));
+                    out.println(finalJsonResponse);
+                } else {
+                    // Envia a resposta normal (seja ela de sucesso ou um erro gerado no catch)
+                    logger.accept(String.format("[%s] Enviando: %s", clientIp, finalJsonResponse));
+                    out.println(finalJsonResponse);
+                }
+                // --- FIM DA ROLETA RUSSA ---
             }
-
         } catch (IOException e) {
             logger.accept("Conexão com cliente [" + clientIp + "] perdida ou fechada.");
         } finally {
@@ -122,9 +145,9 @@ public class ClientHandler implements Runnable {
     private String processarOperacao(JsonNode request) throws Exception {
         String operacao = request.get("operacao").asText();
         switch (operacao) {
+            case "conectar": return handleConectar();
             case "usuario_login": return handleLogin(request);
             case "usuario_criar": return handleCriarUsuario(request);
-            case "conectar": return handleConectar();
         }
 
         String token = request.get("token").asText();
@@ -144,13 +167,7 @@ public class ClientHandler implements Runnable {
     }
 
     private String handleConectar() throws Exception {
-        Object response = criarRespostaBase(true, "conectar", "Já conectado anteriormente.");
-        return mapper.writeValueAsString(response);
-    }
-
-    private String handleUnknownOperation(String operacao) throws Exception{
-        Object response = criarRespostaBase(false, operacao, "Operação ainda não implementada.");
-        return mapper.writeValueAsString(response);
+        return criarRespostaSucesso("conectar", "Já conectado anteriormente");
     }
 
     private String handleLogin(JsonNode request) throws Exception {
@@ -231,11 +248,6 @@ public class ClientHandler implements Runnable {
         usuarioNode.put("saldo", usuario.getSaldo());
         response.set("usuario", usuarioNode);
         
-//        if (onUpdateUser != null) {
-//        	String clientIdentifier = clientSocket.getRemoteSocketAddress().toString().substring(1);
-//        	onUpdateUser.accept(clientIdentifier, usuario.getNome());
-//        }
-        
         return mapper.writeValueAsString(response);
     }
     
@@ -294,10 +306,8 @@ public class ClientHandler implements Runnable {
     }
     
     private String handleDepositar(String cpf, JsonNode request) throws Exception {
-        // CORREÇÃO: Lê o valor diretamente como BigDecimal
         BigDecimal valor = request.get("valor_enviado").decimalValue();
         
-        // A chamada ao serviço agora funciona, pois estamos passando o tipo correto
         transacaoService.realizarDeposito(cpf, valor);
 
         logger.accept(String.format("Depósito de R$%.2f realizado para o CPF %s", valor, cpf));
@@ -315,6 +325,7 @@ public class ClientHandler implements Runnable {
     }
 
     private String handleLerTransacoes(String cpf, JsonNode request) throws Exception {
+
         String dataInicialStr = request.get("data_inicial").asText();
         String dataFinalStr = request.get("data_final").asText();
 
@@ -346,29 +357,108 @@ public class ClientHandler implements Runnable {
             recebedorNode.put("cpf", t.getCpfDestinatario());
             tNode.set("usuario_recebedor", recebedorNode);
 
-            // --- CORREÇÃO DA DATA ANTES DO ENVIO ---
-            // 1. Pega a string do banco (que pode ter nanossegundos)
-            // Assumindo que você renomeou o método get para getDataHoraTransacao()
             String timestampDoBanco = t.getDataHoraTransacao(); 
             
-            System.out.println("Timestamp original do banco: " + timestampDoBanco); // Log para depuração
-            // 2. Converte para um objeto Instant, que entende o formato completo
             Instant instant = Instant.parse(timestampDoBanco);
             System.out.println("Instant parseado: " + instant); // Log para depuração
 
-            // 3. Trunca para segundos (remove a parte fracionária) e converte para string
             String timestampCorreto = instant.truncatedTo(ChronoUnit.SECONDS).toString();
             System.out.println("Timestamp corrigido: " + timestampCorreto); // Log para depuração
             
-            // 4. Usa a string formatada corretamente no JSON de resposta
             tNode.put("criado_em", timestampCorreto);
             tNode.put("atualizado_em", timestampCorreto);
-            // --- FIM DA CORREÇÃO ---
             
             transacoesNode.add(tNode);
         }
         
         response.set("transacoes", transacoesNode);
+
+        Validator.validateServer(response.toString());
         return mapper.writeValueAsString(response);
+    }
+
+    private String handleUnknownOperation(String operacao) throws Exception {
+        throw new BusinessException("Operação desconhecida: " + operacao);
+    }
+
+    private String introduzirErroJsonResposta(String jsonOriginal) {
+        try {
+            ObjectNode node = (ObjectNode) mapper.readTree(jsonOriginal);
+            
+            int tipoErro = random.nextInt(5);
+            logger.accept("[ROLETA RUSSA SERVIDOR] Tipo de erro sorteado: " + tipoErro);
+            
+            List<String> candidateKeys = new ArrayList<>();
+            String keyToCorrupt = null;
+            // Chaves base do servidor protegidas contra corrupção
+            List<String> protectedKeys = List.of("operacao", "status", "info"); 
+
+            switch (tipoErro) {
+                case 0: // Remove chave (exceto protegidas)
+                    node.fieldNames().forEachRemaining(key -> {
+                        if (!protectedKeys.contains(key)) {
+                            candidateKeys.add(key);
+                        }
+                    });
+                    if (!candidateKeys.isEmpty()) {
+                        keyToCorrupt = candidateKeys.get(random.nextInt(candidateKeys.size()));
+                        node.remove(keyToCorrupt);
+                        logger.accept("[ROLETA RUSSA SERVIDOR] Removendo chave aleatória: " + keyToCorrupt);
+                    } else {
+                        logger.accept("[ROLETA RUSSA SERVIDOR] Não encontrou chave (não protegida) para remover.");
+                    }
+                    break;
+                case 1: // Adiciona chave extra
+                    node.put("chave_extra_roleta_servidor_" + random.nextInt(100), "valor_aleatorio_servidor");
+                    logger.accept("[ROLETA RUSSA SERVIDOR] Adicionando chave extra.");
+                    break;
+                case 2: // Muda número para string
+                    node.fields().forEachRemaining(field -> {
+                        if (!protectedKeys.contains(field.getKey()) && field.getValue().isNumber()) {
+                            candidateKeys.add(field.getKey());
+                        }
+                    });
+                    if (!candidateKeys.isEmpty()) {
+                        keyToCorrupt = candidateKeys.get(random.nextInt(candidateKeys.size()));
+                        node.put(keyToCorrupt, "NAO_E_UM_NUMERO_" + random.nextInt(100));
+                        logger.accept("[ROLETA RUSSA SERVIDOR] Trocando número por string na chave aleatória: " + keyToCorrupt);
+                    } else {
+                        logger.accept("[ROLETA RUSSA SERVIDOR] Não encontrou número candidato para trocar por string.");
+                    }
+                    break;
+                case 3: // Muda string para número
+                    node.fields().forEachRemaining(field -> {
+                        if (!protectedKeys.contains(field.getKey()) && field.getValue().isTextual()) {
+                            candidateKeys.add(field.getKey());
+                        }
+                    });
+                    if (!candidateKeys.isEmpty()) {
+                        keyToCorrupt = candidateKeys.get(random.nextInt(candidateKeys.size()));
+                        node.put(keyToCorrupt, random.nextInt(10000));
+                        logger.accept("[ROLETA RUSSA SERVIDOR] Trocando string por número na chave aleatória: " + keyToCorrupt);
+                    } else {
+                        logger.accept("[ROLETA RUSSA SERVIDOR] Não encontrou string candidata para trocar por número.");
+                    }
+                    break;
+                case 4: // Define valor como null (exceto protegidas)
+                    node.fieldNames().forEachRemaining(key -> {
+                        if (!protectedKeys.contains(key) && !node.get(key).isNull()) {
+                            candidateKeys.add(key);
+                        }
+                    });
+                    if (!candidateKeys.isEmpty()) {
+                        keyToCorrupt = candidateKeys.get(random.nextInt(candidateKeys.size()));
+                        node.putNull(keyToCorrupt);
+                        logger.accept("[ROLETA RUSSA SERVIDOR] Definindo valor como null na chave aleatória: " + keyToCorrupt);
+                    } else {
+                        logger.accept("[ROLETA RUSSA SERVIDOR] Não encontrou chave (não protegida) para definir como null.");
+                    }
+                    break;
+            }
+            return mapper.writeValueAsString(node);
+        } catch (Exception e) {
+            logger.accept("[ROLETA RUSSA SERVIDOR] Falha ao tentar corromper JSON: " + e.getMessage());
+            return jsonOriginal;
+        }
     }
 }

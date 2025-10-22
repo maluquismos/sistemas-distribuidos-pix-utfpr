@@ -15,6 +15,9 @@ import java.net.Socket;
 import java.time.temporal.ChronoUnit;
 import java.time.format.DateTimeFormatter;
 import java.util.Date;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Random;
 
 public class ClienteService {
 
@@ -27,6 +30,10 @@ public class ClienteService {
 
     private String tokenSessao;
     private String cpfLogado;
+
+    private static final boolean ROLETA_RUSSA_CLIENTE_ATIVADA = true;
+    private static final double CHANCE_ERRO_CLIENTE = 0.5; 
+    private final Random random = new Random();
 
     private ClienteService() {}
 
@@ -86,11 +93,19 @@ public class ClienteService {
     
     private JsonNode enviarMensagem(String jsonRequest) throws Exception {
         if (!isConectado()) throw new IOException("Não conectado ao servidor.");
-        
-        Validator.validateClient(jsonRequest);
 
-        log("Enviando: " + jsonRequest);
-        out.println(jsonRequest);
+        String finalJsonRequest = jsonRequest;
+        
+        if (ROLETA_RUSSA_CLIENTE_ATIVADA && Math.random() < CHANCE_ERRO_CLIENTE) {
+                log("[ROLETA RUSSA CLIENTE] Introduzindo erro na mensagem de saída...");
+                finalJsonRequest = introduzirErroJson(jsonRequest);
+                log("Enviando (corrompido): " + finalJsonRequest);
+                out.println(finalJsonRequest);
+            } else {
+                log("Enviando: " + finalJsonRequest);
+                Validator.validateClient(finalJsonRequest);
+                out.println(finalJsonRequest);
+            }
         
         String jsonResponse = in.readLine();
         if (jsonResponse == null) {
@@ -99,7 +114,7 @@ public class ClienteService {
         }
 
         log("Recebido: " + jsonResponse);
-        Validator.validateServer(jsonResponse); // Valida ao receber
+        Validator.validateServer(jsonResponse);
         return mapper.readTree(jsonResponse);
     }
 
@@ -207,5 +222,112 @@ public class ClienteService {
     
     public String getCpfLogado() {
         return this.cpfLogado;
+    }
+
+    public void reportarErroServidor(String operacaoOriginal, String infoErro) {
+        try {
+            ObjectNode request = mapper.createObjectNode();
+            request.put("operacao", "erro_servidor");
+            request.put("operacao_enviada", operacaoOriginal);
+            request.put("info", "Erro detectado pelo cliente: " + infoErro);
+            
+            String jsonReport = mapper.writeValueAsString(request);
+            log("Reportando erro ao servidor: " + jsonReport);
+            
+            // Valida o próprio report antes de enviar
+            Validator.validateClient(jsonReport); 
+            
+            // Envia o report (sem esperar resposta específica para ele)
+            if (out != null) {
+                out.println(jsonReport);
+            }
+        } catch (Exception e) {
+            log("Falha ao reportar erro ao servidor: " + e.getMessage());
+        }
+    }
+
+    private String introduzirErroJson(String jsonOriginal) {
+        try {
+            ObjectMapper tempMapper = new ObjectMapper();
+            ObjectNode node = (ObjectNode) tempMapper.readTree(jsonOriginal);
+            
+            int tipoErro = random.nextInt(5); // Gera 0, 1, 2, 3 ou 4
+            log("[ROLETA RUSSA CLIENTE] Tipo de erro sorteado: " + tipoErro);
+            
+            // Lista para guardar chaves candidatas à corrupção
+            List<String> candidateKeys = new ArrayList<>();
+            String keyToCorrupt = null;
+
+            switch (tipoErro) {
+                case 0: // Remove uma chave obrigatória (exceto 'operacao')
+                    node.fieldNames().forEachRemaining(key -> {
+                        if (!key.equals("operacao")) {
+                            candidateKeys.add(key);
+                        }
+                    });
+                    if (!candidateKeys.isEmpty()) {
+                        keyToCorrupt = candidateKeys.get(random.nextInt(candidateKeys.size()));
+                        node.remove(keyToCorrupt);
+                        log("[ROLETA RUSSA CLIENTE] Removendo chave aleatória: " + keyToCorrupt);
+                    } else {
+                        log("[ROLETA RUSSA CLIENTE] Não encontrou chave candidata para remover.");
+                    }
+                    break;
+
+                case 1: // Adiciona uma chave extra (já é aleatório)
+                    node.put("chave_extra_roleta_" + random.nextInt(100), "valor_aleatorio_cliente");
+                    log("[ROLETA RUSSA CLIENTE] Adicionando chave extra.");
+                    break;
+
+                case 2: // Muda um número para string
+                    node.fields().forEachRemaining(field -> {
+                        if (!field.getKey().equals("operacao") && field.getValue().isNumber()) {
+                            candidateKeys.add(field.getKey());
+                        }
+                    });
+                    if (!candidateKeys.isEmpty()) {
+                        keyToCorrupt = candidateKeys.get(random.nextInt(candidateKeys.size()));
+                        node.put(keyToCorrupt, "NAO_E_UM_NUMERO_" + random.nextInt(100));
+                        log("[ROLETA RUSSA CLIENTE] Trocando número por string na chave aleatória: " + keyToCorrupt);
+                    } else {
+                        log("[ROLETA RUSSA CLIENTE] Não encontrou número candidato para trocar por string.");
+                    }
+                    break;
+
+                case 3: // Muda uma string para número
+                    node.fields().forEachRemaining(field -> {
+                        if (!field.getKey().equals("operacao") && field.getValue().isTextual()) {
+                            candidateKeys.add(field.getKey());
+                        }
+                    });
+                    if (!candidateKeys.isEmpty()) {
+                        keyToCorrupt = candidateKeys.get(random.nextInt(candidateKeys.size()));
+                        node.put(keyToCorrupt, random.nextInt(10000));
+                        log("[ROLETA RUSSA CLIENTE] Trocando string por número na chave aleatória: " + keyToCorrupt);
+                    } else {
+                        log("[ROLETA RUSSA CLIENTE] Não encontrou string candidata para trocar por número.");
+                    }
+                    break;
+
+                case 4: // Define um valor como null (exceto 'operacao')
+                    node.fieldNames().forEachRemaining(key -> {
+                        if (!key.equals("operacao") && !node.get(key).isNull()) {
+                            candidateKeys.add(key);
+                        }
+                    });
+                    if (!candidateKeys.isEmpty()) {
+                        keyToCorrupt = candidateKeys.get(random.nextInt(candidateKeys.size()));
+                        node.putNull(keyToCorrupt);
+                        log("[ROLETA RUSSA CLIENTE] Definindo valor como null na chave aleatória: " + keyToCorrupt);
+                    } else {
+                        log("[ROLETA RUSSA CLIENTE] Não encontrou chave candidata para definir como null.");
+                    }
+                    break;
+            }
+            return tempMapper.writeValueAsString(node);
+        } catch (Exception e) {
+            log("[ROLETA RUSSA CLIENTE] Falha ao tentar corromper JSON: " + e.getMessage());
+            return jsonOriginal; 
+        }
     }
 }
