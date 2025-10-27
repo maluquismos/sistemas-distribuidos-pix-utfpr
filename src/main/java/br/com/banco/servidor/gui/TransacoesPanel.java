@@ -23,7 +23,7 @@ public class TransacoesPanel extends JPanel {
     public TransacoesPanel() {
         this.transacaoDAO = new TransacaoDAO();
         // Define o formato de data/hora desejado
-        this.formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss", new Locale("pt", "BR"))
+        this.formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss", Locale.of("pt", "BR"))
                                           .withZone(ZoneId.systemDefault());
         
         setLayout(new BorderLayout(10, 10));

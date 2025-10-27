@@ -163,7 +163,7 @@ public class ExtratoDialog extends JDialog {
 
         String cpfUsuarioLogado = clienteService.getCpfLogado();
         DateTimeFormatter parser = DateTimeFormatter.ISO_DATE_TIME;
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm", new Locale("pt", "BR"));
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm", Locale.of("pt", "BR"));
 
         for (JsonNode t : transacoes) {
             String cpfRemetente = t.get("usuario_enviador").get("cpf").asText();
@@ -178,7 +178,7 @@ public class ExtratoDialog extends JDialog {
             
             if (cpfRemetente.equals(cpfDestinatario) && cpfRemetente.equals(cpfUsuarioLogado)) {
                 tipo = "Entrada";
-                descricao = "Depósito recebido";
+                descricao = "Depósito efetuado";
             } else if (cpfRemetente.equals(cpfUsuarioLogado)) {
                 tipo = "Saída";
                 descricao = "PIX enviado para " + nomeDestinatario;

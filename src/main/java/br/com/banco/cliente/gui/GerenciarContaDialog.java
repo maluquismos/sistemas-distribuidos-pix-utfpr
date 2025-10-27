@@ -1,6 +1,7 @@
 package br.com.banco.cliente.gui;
 
 import br.com.banco.cliente.service.ClienteService;
+import br.com.banco.cliente.util.ErrorHandlerUtil;
 import br.com.banco.cliente.util.IconUtil;
 import com.fasterxml.jackson.databind.JsonNode;
 
@@ -114,26 +115,25 @@ public class GerenciarContaDialog extends JDialog {
         String novoNome = nomeField.getText();
         String novaSenha = new String(senhaField.getPassword());
 
-        try {
-            // A GUI apenas chama o método de serviço
-            JsonNode response = clienteService.atualizarUsuario(novoNome, novaSenha);
-            String info = response.get("info").asText();
+        String operacaoOriginal = "usuario_atualizar";
 
-            if (response.get("status").asBoolean()) {
+        try {
+            JsonNode response = clienteService.atualizarUsuario(novoNome, novaSenha);
+            String info = response.path("info").asText("Atualização processada.");
+            if (response.path("status").asBoolean(false)) {
                 JOptionPane.showMessageDialog(this, info, "Sucesso", JOptionPane.INFORMATION_MESSAGE);
-                onDataUpdated.run(); // Executa o callback para atualizar o dashboard
+                onDataUpdated.run();
                 this.dispose();
             } else {
-                JOptionPane.showMessageDialog(this, info, "Erro na Atualização", JOptionPane.ERROR_MESSAGE);
+                ErrorHandlerUtil.handleError(this, new Exception(info), operacaoOriginal, clienteService, null, null);
             }
-        } catch (IllegalArgumentException e) { // Captura o erro local se nenhum campo for preenchido
-            JOptionPane.showMessageDialog(this, e.getMessage(), "Aviso", JOptionPane.WARNING_MESSAGE);
         } catch (Exception e) {
-            JOptionPane.showMessageDialog(this, "Erro de comunicação: " + e.getMessage(), "Erro", JOptionPane.ERROR_MESSAGE);
+             ErrorHandlerUtil.handleError(this, e, operacaoOriginal, clienteService, null, null);
         }
     }
 
     private void handleDelete() {
+        
         int choice = JOptionPane.showConfirmDialog(
             this,
             "ATENÇÃO!\nEsta ação é irreversível e todos os seus dados serão apagados.\n\nDeseja continuar com a exclusão da sua conta?",
@@ -141,21 +141,20 @@ public class GerenciarContaDialog extends JDialog {
             JOptionPane.YES_NO_OPTION,
             JOptionPane.WARNING_MESSAGE
         );
-
+        String operacaoOriginal = "usuario_deletar";
         if (choice == JOptionPane.YES_OPTION) {
             try {
                 JsonNode response = clienteService.deletarConta();
-                String info = response.get("info").asText();
-
-                if (response.get("status").asBoolean()) {
+                String info = response.path("info").asText("Exclusão processada.");
+                if (response.path("status").asBoolean(false)) {
                     JOptionPane.showMessageDialog(this, info, "Conta Excluída", JOptionPane.INFORMATION_MESSAGE);
                     this.dispose();
                     onAccountDeleted.run();
                 } else {
-                    JOptionPane.showMessageDialog(this, info, "Erro ao Excluir", JOptionPane.ERROR_MESSAGE);
+                    ErrorHandlerUtil.handleError(this, new Exception(info), operacaoOriginal, clienteService, null, null);
                 }
             } catch (Exception e) {
-                JOptionPane.showMessageDialog(this, "Erro de comunicação: " + e.getMessage(), "Erro", JOptionPane.ERROR_MESSAGE);
+                ErrorHandlerUtil.handleError(this, e, operacaoOriginal, clienteService, null, null);
             }
         }
     }
