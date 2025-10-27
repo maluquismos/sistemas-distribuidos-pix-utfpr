@@ -29,10 +29,19 @@ public class Database {
                             + "    FOREIGN KEY (cpf_remetente) REFERENCES usuario(cpf),\n"
                             + "    FOREIGN KEY (cpf_destinatario) REFERENCES usuario(cpf)\n"
                             + ");";
+        
+        String sqlLogError = "CREATE TABLE IF NOT EXISTS log_erros (\n"
+                       + "    id INTEGER PRIMARY KEY AUTOINCREMENT,\n"
+                       + "    operacao_original TEXT NOT NULL,\n"
+                       + "    detalhes_erro TEXT NOT NULL,\n"
+                       + "    ip_cliente TEXT,\n"
+                       + "    timestamp TEXT NOT NULL\n"
+                       + ");";
 
         try (Connection conn = getConnection(); Statement stmt = conn.createStatement()) {
             stmt.execute(sqlUsuario);
             stmt.execute(sqlTransacao);
+            stmt.execute(sqlLogError);
             System.out.println("Banco de dados inicializado com sucesso.");
         } catch (SQLException e) {
             System.err.println("Erro ao inicializar o banco de dados: " + e.getMessage());

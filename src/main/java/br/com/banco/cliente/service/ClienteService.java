@@ -1,5 +1,6 @@
 package br.com.banco.cliente.service;
 
+import br.com.banco.cliente.exception.ClientProtocolException;
 import br.com.banco.cliente.gui.LogFrame;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -32,7 +33,7 @@ public class ClienteService {
     private String cpfLogado;
 
     private static final boolean ROLETA_RUSSA_CLIENTE_ATIVADA = true;
-    private static final double CHANCE_ERRO_CLIENTE = 0.5; 
+    private static final double CHANCE_ERRO_CLIENTE = 0; 
     private final Random random = new Random();
 
     private ClienteService() {}
@@ -95,27 +96,87 @@ public class ClienteService {
         if (!isConectado()) throw new IOException("Não conectado ao servidor.");
 
         String finalJsonRequest = jsonRequest;
-        
-        if (ROLETA_RUSSA_CLIENTE_ATIVADA && Math.random() < CHANCE_ERRO_CLIENTE) {
-                log("[ROLETA RUSSA CLIENTE] Introduzindo erro na mensagem de saída...");
-                finalJsonRequest = introduzirErroJson(jsonRequest);
-                log("Enviando (corrompido): " + finalJsonRequest);
-                out.println(finalJsonRequest);
-            } else {
+        boolean messageCorrupted = false;
+        if (ROLETA_RUSSA_CLIENTE_ATIVADA && random.nextDouble() < CHANCE_ERRO_CLIENTE) {
+            log("[ROLETA RUSSA CLIENTE] Introduzindo erro na mensagem de saída...");
+            finalJsonRequest = introduzirErroJson(jsonRequest);
+            log("Enviando (corrompido): " + finalJsonRequest);
+            messageCorrupted = true;
+        } else {
+            log("Enviando: " + finalJsonRequest);
+            Validator.validateClient(finalJsonRequest);
+        }
+
+        try {
+            if (!messageCorrupted) {
                 log("Enviando: " + finalJsonRequest);
                 Validator.validateClient(finalJsonRequest);
                 out.println(finalJsonRequest);
+            } else {
+                log("Enviando (corrompido): " + finalJsonRequest);
+                out.println(finalJsonRequest);
             }
-        
+        } catch (Exception validationError) {
+            log("[ERRO CLIENTE] Mensagem de saída inválida: " + validationError.getMessage());
+            throw new ClientProtocolException("Erro ao montar a requisição: " + validationError.getMessage());
+        }
         String jsonResponse = in.readLine();
         if (jsonResponse == null) {
             desconectar();
             throw new IOException("O servidor encerrou a conexão inesperadamente.");
         }
-
         log("Recebido: " + jsonResponse);
-        Validator.validateServer(jsonResponse);
+
+        try {
+            Validator.validateServer(jsonResponse);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(e.getMessage(), e);
+        }
+
         return mapper.readTree(jsonResponse);
+    }
+
+    public boolean reportarErroEAguardarConfirmacao(String operacaoOriginal, String infoErro) {
+        if (!isConectado()) {
+            log("Não conectado, impossível reportar erro.");
+            return false;
+        }
+        
+        try {
+            ObjectNode request = mapper.createObjectNode();
+            request.put("operacao", "erro_servidor");
+            request.put("operacao_enviada", operacaoOriginal);
+            request.put("info", "Erro detectado pelo cliente: " + infoErro);
+            
+            String jsonReport = mapper.writeValueAsString(request);
+            log("Reportando erro ao servidor: " + jsonReport);
+            Validator.validateClient(jsonReport); 
+            
+            out.println(jsonReport);
+
+            String jsonConfirmation = in.readLine();
+            if (jsonConfirmation == null) {
+                log("Servidor desconectou antes de confirmar o erro.");
+                desconectar();
+                return false;
+            }
+            log("Recebido (Confirmação de Erro): " + jsonConfirmation);
+            
+            Validator.validateServer(jsonConfirmation); 
+            JsonNode confirmationNode = mapper.readTree(jsonConfirmation);
+            
+            return confirmationNode.has("status") &&
+                   confirmationNode.get("status").asBoolean() &&
+                   confirmationNode.has("operacao") &&
+                   "erro_servidor".equals(confirmationNode.get("operacao").asText());
+
+        } catch (Exception e) {
+            log("Falha ao reportar ou confirmar erro ao servidor: " + e.getMessage());
+            if (e instanceof IOException) {
+                desconectar();
+            }
+            return false;
+        }
     }
 
     // --- API DE OPERAÇÕES DE NEGÓCIO ---

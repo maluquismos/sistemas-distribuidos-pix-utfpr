@@ -1,6 +1,8 @@
 package br.com.banco.cliente.gui;
 
 import br.com.banco.cliente.service.ClienteService;
+import br.com.banco.cliente.util.ErrorHandlerUtil;
+
 import com.fasterxml.jackson.databind.JsonNode;
 
 import javax.swing.*;
@@ -73,6 +75,7 @@ public class PixDialog extends JDialog {
     private void handleTransferencia() {
         String cpfDestino = cpfDestinoField.getText();
         Object valorObj = valorField.getValue();
+        String operacaoOriginal = "transacao_criar";
 
         if (cpfDestino.contains("_") || valorObj == null) {
             JOptionPane.showMessageDialog(this, "Por favor, preencha todos os campos.", "Campos Incompletos", JOptionPane.WARNING_MESSAGE);
@@ -86,37 +89,34 @@ public class PixDialog extends JDialog {
             return;
         }
 
-        // Confirmação final
         int choice = JOptionPane.showConfirmDialog(this,
                 String.format("Você confirma a transferência de R$ %.2f para o CPF %s?", valor, cpfDestino),
                 "Confirmação de PIX",
                 JOptionPane.YES_NO_OPTION);
 
-        if (choice == JOptionPane.YES_OPTION) {
+        if (choice == JOptionPane.YES_OPTION) { 
             try {
                 JsonNode response = clienteService.realizarTransferencia(cpfDestino, valor);
-                String info = response.get("info").asText();
-
-                if (response.get("status").asBoolean()) {
+                String info = response.path("info").asText("Transferência processada.");
+                if (response.path("status").asBoolean(false)) {
                     JOptionPane.showMessageDialog(this, info, "Sucesso", JOptionPane.INFORMATION_MESSAGE);
-                    onActionSuccess.run(); // Atualiza o dashboard
+                    onActionSuccess.run();
                     this.dispose();
                 } else {
-                    JOptionPane.showMessageDialog(this, info, "Erro na Transferência", JOptionPane.ERROR_MESSAGE);
+                    ErrorHandlerUtil.handleError(this, new Exception(info), operacaoOriginal, clienteService, null, null);
                 }
             } catch (Exception e) {
-                JOptionPane.showMessageDialog(this, "Erro de comunicação: " + e.getMessage(), "Erro", JOptionPane.ERROR_MESSAGE);
+                ErrorHandlerUtil.handleError(this, e, operacaoOriginal, clienteService, null, null);
             }
         }
     }
 
-    // --- MÉTODOS AUXILIARES PARA CRIAR OS CAMPOS FORMATADOS ---
     private JFormattedTextField createCpfField() {
         try {
             MaskFormatter cpfFormatter = new MaskFormatter("###.###.###-##");
             return new JFormattedTextField(cpfFormatter);
         } catch (ParseException e) {
-            return new JFormattedTextField(); // Fallback
+            return new JFormattedTextField();
         }
     }
 

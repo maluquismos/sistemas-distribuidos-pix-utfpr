@@ -22,6 +22,7 @@ public class ServidorGUI extends JFrame {
     private ConexoesPanel conexoesPanel;
     private UsuariosPanel usuariosPanel;
     private TransacoesPanel transacoesPanel;
+    private LogErrosPanel logErrosPanel;
 
     public static void main(String[] args) {
         try {
@@ -89,7 +90,7 @@ public class ServidorGUI extends JFrame {
         conexoesPanel = new ConexoesPanel();
         usuariosPanel = new UsuariosPanel();
         transacoesPanel = new TransacoesPanel();
-        
+        logErrosPanel = new LogErrosPanel();
 
         tabbedPane.putClientProperty("JTabbedPane.tabAlignment", "center");
         tabbedPane.putClientProperty("JTabbedPane.showTabSeparators", true);
@@ -97,6 +98,7 @@ public class ServidorGUI extends JFrame {
         tabbedPane.addTab("Conexões", conexoesPanel);
         tabbedPane.addTab("Usuários", usuariosPanel);
         tabbedPane.addTab("Transações", transacoesPanel);
+        tabbedPane.addTab("Logs de Erro", logErrosPanel);
         tabbedPane.addTab("Sobre", new JPanel());
         
         // --- PAINEL DE LOG (SUL) ---

@@ -14,6 +14,8 @@ import java.io.*;
 import java.math.BigDecimal;
 import java.net.Socket;
 import java.util.function.Consumer;
+
+import br.com.banco.servidor.dao.LogErrorDAO;
 import br.com.banco.servidor.dao.TransacaoDAO;
 import br.com.banco.servidor.util.PasswordUtil;
 
@@ -40,8 +42,9 @@ public class ClientHandler implements Runnable {
 //    private final BiConsumer<String, String> onUpdateUser;
     private final Consumer<String> onLogout;
     private static final boolean ROLETA_RUSSA_SERVIDOR_ATIVADA = true;
-    private static final double CHANCE_ERRO_SERVIDOR = 0.1; 
+    private static final double CHANCE_ERRO_SERVIDOR = 0.5; 
     private final Random random = new Random();
+    private final LogErrorDAO logErrorDAO = new LogErrorDAO();
     
 //    public ClientHandler(Socket socket, Consumer<String> logger, Runnable onDisconnect, BiConsumer<String, String> onLoginSuccess, Consumer<String> onLogout, BiConsumer<String, String> onUpdateUser) {
 //        this.clientSocket = socket;
@@ -116,8 +119,7 @@ public class ClientHandler implements Runnable {
 
                 // --- LÓGICA DA ROLETA RUSSA (SERVIDOR -> CLIENTE) ---
                 String finalJsonResponse = jsonResponse;
-                // SÓ aplica a roleta se NÃO for uma resposta de erro gerada pelo catch acima
-                if (!isErrorResponse && ROLETA_RUSSA_SERVIDOR_ATIVADA && Math.random() < CHANCE_ERRO_SERVIDOR) {
+                if (!isErrorResponse && ROLETA_RUSSA_SERVIDOR_ATIVADA && Math.random() < CHANCE_ERRO_SERVIDOR && !requestNode.get("operacao").asText().equals("erro_servidor")) {
                     logger.accept("[ROLETA RUSSA SERVIDOR] Introduzindo erro na resposta...");
                     finalJsonResponse = introduzirErroJsonResposta(jsonResponse);
                     logger.accept(String.format("[%s] Enviando (corrompido): %s", clientIp, finalJsonResponse));
@@ -148,6 +150,7 @@ public class ClientHandler implements Runnable {
             case "conectar": return handleConectar();
             case "usuario_login": return handleLogin(request);
             case "usuario_criar": return handleCriarUsuario(request);
+            case "erro_servidor": return handleErroServidorReportado(request);
         }
 
         String token = request.get("token").asText();
@@ -360,10 +363,8 @@ public class ClientHandler implements Runnable {
             String timestampDoBanco = t.getDataHoraTransacao(); 
             
             Instant instant = Instant.parse(timestampDoBanco);
-            System.out.println("Instant parseado: " + instant); // Log para depuração
 
             String timestampCorreto = instant.truncatedTo(ChronoUnit.SECONDS).toString();
-            System.out.println("Timestamp corrigido: " + timestampCorreto); // Log para depuração
             
             tNode.put("criado_em", timestampCorreto);
             tNode.put("atualizado_em", timestampCorreto);
@@ -375,6 +376,18 @@ public class ClientHandler implements Runnable {
 
         Validator.validateServer(response.toString());
         return mapper.writeValueAsString(response);
+    }
+
+    private String handleErroServidorReportado(JsonNode request) throws IOException {
+        String operacaoOriginal = request.get("operacao_enviada").asText();
+        String infoErro = request.get("info").asText();
+        
+        logger.accept(String.format("[ERRO REPORTADO PELO CLIENTE %s] Operação: '%s'. Detalhes: %s",
+                                    clientIp, operacaoOriginal, infoErro));
+        
+        logErrorDAO.registrarErro(operacaoOriginal, infoErro, clientIp);
+                                    
+        return criarRespostaSucesso("erro_servidor", "Erro registrado pelo servidor.");
     }
 
     private String handleUnknownOperation(String operacao) throws Exception {

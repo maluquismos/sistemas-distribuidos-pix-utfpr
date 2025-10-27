@@ -132,11 +132,17 @@ public class Validator {
 
         RulesEnum operacao = RulesEnum.getEnum(operacaoNode.asText());
 
+        Set<String> expectedKeysForThisResponse;
         if (statusNode.asBoolean()) {
-            checkExtraKeys(rootNode, operacao, EXPECTED_SERVER_KEYS);
+            expectedKeysForThisResponse = EXPECTED_SERVER_KEYS.get(operacao);
+            if (expectedKeysForThisResponse == null) { // Segurança extra
+                throw new IllegalArgumentException("Definição de chaves não encontrada para operação de sucesso: " + operacao);
+            }
         } else {
-            checkExtraKeys(rootNode, operacao, Map.of(operacao, Set.of("operacao", "status", "info")));
+            expectedKeysForThisResponse = Set.of("operacao", "status", "info");
         }
+
+        checkExtraKeys(rootNode, operacao, Map.of(operacao, expectedKeysForThisResponse));
 
         // Chama a validação específica apenas se o status for true (sucesso)
         if (statusNode.asBoolean()) {
